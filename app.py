@@ -1,6 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 import json
+import random
 
 # ==============================================================================
 # 1. CONFIGURATION ET DONNÉES (ISSUES DE CONSTANTS.TS)
@@ -39,7 +40,6 @@ PARAMETERS_OPTIONS = {
 }
 
 # --- Données structurées pour les menus (Dance Elements) ---
-# J'ai converti vos données JS en dictionnaire Python pour faciliter l'affichage
 DANCE_ELEMENTS = {
     "INDUCTEURS (Point de départ)": [
         "Lieux & Environnements", "Le Vivant (Animaux & Nature)", "Culture, Histoire & Personnages", 
@@ -56,18 +56,32 @@ DANCE_ELEMENTS = {
 }
 
 # ==============================================================================
-# 2. CONNEXION API
+# 2. CONNEXION API SÉCURISÉE (Ajout de la gestion d'erreurs)
 # ==============================================================================
 
-# Récupération de la clé sécurisée depuis Streamlit Secrets
+model = None
 try:
+    # 1. Tente de récupérer la clé dans les Streamlit Secrets
     api_key = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=api_key)
-    # On utilise le modèle Flash comme dans votre code (1.5 est plus stable que 2.5 preview pour le moment)
+    # 2. Configure le modèle avec la System Instruction
     model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=SYSTEM_INSTRUCTION)
+    API_SUCCESS = True
+except KeyError:
+    API_SUCCESS = False
+    st.error("Erreur de configuration API: La clé 'GOOGLE_API_KEY' n'est pas configurée dans les Streamlit Secrets. Veuillez vérifier les 'Advanced settings' et vous assurer que la clé y est complète et au format correct (entre guillemets).")
 except Exception as e:
-    st.error("Erreur de configuration API. Avez-vous bien ajouté la clé dans les 'Secrets' de Streamlit ?")
+    API_SUCCESS = False
+    # Ce message d'erreur est celui qui apparaissait
+    if "No module named 'google.generativeai'" in str(e):
+        st.error(f"Erreur d'installation : La librairie 'google.generativeai' n'a pas été installée. Veuillez vérifier que votre fichier 'requirements.txt' est bien nommé (au pluriel) et contient les deux lignes 'streamlit' et 'google-generativeai'.")
+    else:
+        st.error(f"Erreur de connexion inattendue avec Google Gemini: {e}")
+        
+# Si l'API n'a pas pu se connecter, on arrête l'exécution pour éviter les erreurs plus bas
+if not API_SUCCESS:
     st.stop()
+
 
 # ==============================================================================
 # 3. INTERFACE UTILISATEUR (TABS)
@@ -76,7 +90,7 @@ except Exception as e:
 st.title("Danse d'Expression - Lycée Chevalier d'Eon 💃")
 st.markdown("---")
 
-# Création des onglets comme dans votre app originale
+# Création des onglets
 tab1, tab2, tab3, tab4 = st.tabs([
     "💬 Le Coach", 
     "✨ Générateur Choré", 
@@ -111,7 +125,7 @@ with tab1:
                 st.markdown(response.text)
             st.session_state.messages.append({"role": "model", "parts": [response.text]})
         except Exception as e:
-            st.error(f"Erreur : {e}")
+            st.error(f"Erreur lors de l'envoi du message : {e}")
 
 # ------------------------------------------------------------------------------
 # TAB 2: GÉNÉRATEUR DE CHORÉGRAPHIE
@@ -150,7 +164,7 @@ with tab2:
                     st.success("Voici une proposition de séquence :")
                     st.markdown(response.text)
                 except Exception as e:
-                    st.error("Erreur lors de la génération.")
+                    st.error(f"Erreur lors de la génération : {e}")
 
 # ------------------------------------------------------------------------------
 # TAB 3: ATELIER VARIATIONS
@@ -174,7 +188,7 @@ with tab3:
                 st.markdown(f"### 3 Idées pour : {elem_choice}")
                 st.markdown(response.text)
             except Exception as e:
-                st.error("Erreur de connexion.")
+                st.error(f"Erreur lors de la recherche : {e}")
 
 # ------------------------------------------------------------------------------
 # TAB 4: BOÎTE À IDÉES (CRÉATIVITÉ)
@@ -197,7 +211,7 @@ with tab4:
             
             try:
                 response = model.generate_content(prompt_full)
-                # Nettoyage sommaire pour extraire le JSON si l'IA bavarde
+                # Nettoyage sommaire pour extraire le JSON
                 text_resp = response.text
                 start = text_resp.find('{')
                 end = text_resp.rfind('}') + 1
@@ -209,5 +223,4 @@ with tab4:
                 st.info(data.get('description', ''))
                 
             except Exception as e:
-                # Fallback si le JSON échoue (rare)
-                st.write(response.text if 'response' in locals() else "Erreur technique.")
+                st.error(f"Erreur lors de la génération de l'idée : {e}")
