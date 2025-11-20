@@ -1,3 +1,6 @@
+import os
+os.system("pip install google-generativeai")
+
 import streamlit as st
 import google.generativeai as genai
 import json
@@ -69,14 +72,12 @@ try:
     API_SUCCESS = True
 except KeyError:
     API_SUCCESS = False
+    # Ce message d'erreur est affiché SI le fichier est installé, mais la clé est absente.
     st.error("Erreur de configuration API: La clé 'GOOGLE_API_KEY' n'est pas configurée dans les Streamlit Secrets. Veuillez vérifier les 'Advanced settings' et vous assurer que la clé y est complète et au format correct (entre guillemets).")
 except Exception as e:
     API_SUCCESS = False
-    # Ce message d'erreur est celui qui apparaissait
-    if "No module named 'google.generativeai'" in str(e):
-        st.error(f"Erreur d'installation : La librairie 'google.generativeai' n'a pas été installée. Veuillez vérifier que votre fichier 'requirements.txt' est bien nommé (au pluriel) et contient les deux lignes 'streamlit' et 'google-generativeai'.")
-    else:
-        st.error(f"Erreur de connexion inattendue avec Google Gemini: {e}")
+    # Ce message d'erreur est affiché en cas d'échec de connexion inattendu
+    st.error(f"Erreur de connexion inattendue avec Google Gemini: {e}")
         
 # Si l'API n'a pas pu se connecter, on arrête l'exécution pour éviter les erreurs plus bas
 if not API_SUCCESS:
